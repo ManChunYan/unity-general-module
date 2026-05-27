@@ -1,0 +1,23 @@
+{
+  "author": "JJ.YUAN",
+  "description": "General module runtime utilities for Unity.",
+  "displayName": "General Module",
+  "keywords": [
+    "unity",
+    "module",
+    "save",
+    "data"
+  ],
+  "license": "MIT",
+  "name": "com.general.module",
+  "samples": [
+    {
+      "displayName": "Basic Module",
+      "description": "Minimal MainBase, ModuleBase, and IDataPack example.",
+      "path": "Samples~/Basic Module"
+    }
+  ],
+  "unity": "2023.2",
+  "unityRelease": "0f1",
+  "version": "1.0.0-preview.1"
+}
