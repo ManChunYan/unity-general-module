@@ -36,9 +36,21 @@ namespace General.Module
 
         internal void AddModule<T>(T t, ModuleOpCode opcode = ModuleOpCode.None) where T : ModuleBase
         {
+            if (t == null)
+            {
+                Debug.LogError($"Add null module: {typeof(T).Name}");
+                return;
+            }
+
             if (Contains<T>())
             {
                 Debug.LogError($"Add repeated module: {typeof(T).Name}");
+                return;
+            }
+
+            if (HasSaveDataOpcodeConflict(t.GetType(), opcode))
+            {
+                Debug.LogError($"Add module with repeated save opcode: {typeof(T).Name}, {opcode}");
                 return;
             }
 
@@ -56,6 +68,13 @@ namespace General.Module
                 Debug.LogError($"Add repeated module: {typeof(T).Name}");
                 return existingModule;
             }
+
+            if (HasSaveDataOpcodeConflict(typeof(T), opcode))
+            {
+                Debug.LogError($"Add module with repeated save opcode: {typeof(T).Name}, {opcode}");
+                return null;
+            }
+
             var module = Activator.CreateInstance<T>();
             module.SetOpcode(opcode);
             module.Initialize(_main);
@@ -210,7 +229,12 @@ namespace General.Module
 
         private IEnumerable<ModuleBase> GetAttributeDefineModules()
         {
-            var seenOpcodes = new HashSet<ModuleOpCode>(_modules.Select(module => module.Opcode));
+            var saveOpcodes = new Dictionary<ModuleOpCode, Type>();
+            foreach (var module in GetModules())
+            {
+                if (module is IDataPack)
+                    saveOpcodes[module.Opcode] = module.GetType();
+            }
 
             foreach (var type in GetLoadableTypes())
             {
@@ -222,8 +246,11 @@ namespace General.Module
                 if (attr == null)
                     continue;
 
-                if (!seenOpcodes.Add(attr.Opcode))
+                if (typeof(IDataPack).IsAssignableFrom(type) && saveOpcodes.TryGetValue(attr.Opcode, out var existingType))
+                {
+                    Debug.LogError($"Skip module with repeated save opcode: {type.Name}, {attr.Opcode}. Existing module: {existingType.Name}");
                     continue;
+                }
 
                 var obj = Activator.CreateInstance(type) as ModuleBase;
 
@@ -233,6 +260,9 @@ namespace General.Module
                 Debug.Log($"Add {attr.Opcode} Module Success");
 
                 obj.SetOpcode(attr.Opcode);
+
+                if (obj is IDataPack)
+                    saveOpcodes[attr.Opcode] = type;
 
                 yield return (obj);
             }
@@ -280,7 +310,20 @@ namespace General.Module
                 }
             }
         }
+
+        private bool HasSaveDataOpcodeConflict(Type moduleType, ModuleOpCode opcode)
+        {
+            if (!typeof(IDataPack).IsAssignableFrom(moduleType))
+                return false;
+
+            foreach (var module in GetModules())
+            {
+                if (module.Opcode == opcode && module is IDataPack)
+                    return true;
+            }
+
+            return false;
+        }
     }
 }
-
 

@@ -13,6 +13,8 @@ namespace General.Module
 
         private bool IsRun;
 
+        public bool IsRunning => IsRun;
+
         /// <summary>
         /// Sets the module opcode. Call this only during module setup.
         /// </summary>
@@ -33,6 +35,9 @@ namespace General.Module
 
         internal void Initialize(MainBase main)
         {
+            if (IsInitialize)
+                return;
+
             _mainBase = main;
             IsInitialize = true;
             OnInit();
@@ -40,6 +45,9 @@ namespace General.Module
 
         internal void Begin()
         {
+            if (IsRun)
+                return;
+
             OnBegin();
             IsRun = true;
         }
@@ -52,6 +60,9 @@ namespace General.Module
 
         internal void Release()
         {
+            if (!IsRun)
+                return;
+
             OnRelease();
             IsRun = false;
         }

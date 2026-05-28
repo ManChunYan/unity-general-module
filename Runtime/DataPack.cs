@@ -15,7 +15,24 @@ namespace General.Module
         public int OffSet => IsWriting ? _data.Count : _position;
         public int Count => IsWriting ? _data.Count : _buffer.Count;
         public int Remaining => Count - OffSet;
-        public byte[] GetBuffer => IsWriting ? _data.ToArray() : _buffer.Array;
+        public byte[] GetBuffer
+        {
+            get
+            {
+                if (IsWriting)
+                    return _data.ToArray();
+
+                if (_buffer.Count == 0)
+                    return Array.Empty<byte>();
+
+                if (_buffer.Offset == 0 && _buffer.Array.Length == _buffer.Count)
+                    return _buffer.Array;
+
+                var bytes = new byte[_buffer.Count];
+                Buffer.BlockCopy(_buffer.Array, _buffer.Offset, bytes, 0, _buffer.Count);
+                return bytes;
+            }
+        }
 
         private bool IsWriting => _buffer.Array == null;
 

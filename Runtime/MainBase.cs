@@ -114,7 +114,7 @@ namespace General
                 {
                     var modulePack = new DataPack();
                     dataModule.SaveMainData(modulePack, fileName);
-                    modules.Add(new ModuleSaveData(module.Opcode, modulePack.GetBuffer));
+                    modules.Add(new ModuleSaveData(module, modulePack.GetBuffer));
                 }
             }
 
@@ -126,7 +126,7 @@ namespace General
                 dataPack.Write(module.Data.Length);
                 dataPack.Write(module.Data);
 
-                if (GetModule(module.Opcode) is IDataPack dataModule)
+                if (module.Module is IDataPack dataModule)
                 {
                     var subDataIds = dataModule.GetSubDataIDList();
                     var subData = new List<SubModuleSaveData>();
@@ -195,6 +195,7 @@ namespace General
             try
             {
                 var loadPack = new DataPack(data);
+                var modules = new List<LoadedModuleSaveData>();
 
                 if (loadPack.Count == 0)
                     return SaveLoadResult.Success;
@@ -225,13 +226,7 @@ namespace General
                     var opcode = (ModuleOpCode)loadPack.ReadInt32();
                     var dataLength = loadPack.ReadInt32();
                     var moduleData = loadPack.ReadBytes(dataLength);
-
-                    var module = GetModule(opcode);
-
-                    if (module is IDataPack packModule)
-                    {
-                        packModule.SetMainDataDirty(new DataPack(moduleData), fileName);
-                    }
+                    var subData = new List<SubModuleSaveData>();
 
                     var subDataCount = loadPack.ReadInt32();
                     if (subDataCount < 0)
@@ -244,12 +239,30 @@ namespace General
                     {
                         var id = loadPack.ReadUInt32();
                         var subDataLength = loadPack.ReadInt32();
-                        var subData = loadPack.ReadBytes(subDataLength);
+                        var subDataBytes = loadPack.ReadBytes(subDataLength);
 
-                        if (module is IDataPack subDataModule)
-                        {
-                            subDataModule.SetSubDataDirty(id, new DataPack(subData), fileName);
-                        }
+                        subData.Add(new SubModuleSaveData(id, subDataBytes));
+                    }
+
+                    modules.Add(new LoadedModuleSaveData(opcode, moduleData, subData));
+                }
+
+                if (loadPack.Remaining != 0)
+                {
+                    Debug.LogError($"Invalid save trailing data length: {loadPack.Remaining}");
+                    return SaveLoadResult.InvalidData;
+                }
+
+                foreach (var moduleData in modules)
+                {
+                    if (GetModule(moduleData.Opcode) is not IDataPack packModule)
+                        continue;
+
+                    packModule.SetMainDataDirty(new DataPack(moduleData.Data), fileName);
+
+                    foreach (var subData in moduleData.SubData)
+                    {
+                        packModule.SetSubDataDirty(subData.ID, new DataPack(subData.Data), fileName);
                     }
                 }
 
@@ -264,14 +277,29 @@ namespace General
 
         private readonly struct ModuleSaveData
         {
-            public ModuleSaveData(ModuleOpCode opcode, byte[] data)
+            public ModuleSaveData(ModuleBase module, byte[] data)
+            {
+                Module = module;
+                Data = data ?? Array.Empty<byte>();
+            }
+
+            public ModuleBase Module { get; }
+            public ModuleOpCode Opcode => Module.Opcode;
+            public byte[] Data { get; }
+        }
+
+        private readonly struct LoadedModuleSaveData
+        {
+            public LoadedModuleSaveData(ModuleOpCode opcode, byte[] data, IReadOnlyList<SubModuleSaveData> subData)
             {
                 Opcode = opcode;
                 Data = data ?? Array.Empty<byte>();
+                SubData = subData ?? Array.Empty<SubModuleSaveData>();
             }
 
             public ModuleOpCode Opcode { get; }
             public byte[] Data { get; }
+            public IReadOnlyList<SubModuleSaveData> SubData { get; }
         }
 
         private readonly struct SubModuleSaveData
